@@ -3,7 +3,6 @@ namespace NSQ.Consumer;
 using System.Text.Json;
 using NSQ.Consumer.Events;
 using NSQ.Consumer.Wrapper;
-using NSQ.Models;
 
 using NsqSharp;
 using Message = Models.Message;
