@@ -7,7 +7,7 @@ using NSQ.Consumer.Wrapper;
 using NsqSharp;
 using Message = Models.Message;
 
-public class NSQConsumer(IConsumerWrapper consumer) : INSQConsumer
+internal class NSQConsumer(IConsumerWrapper consumer) : INSQConsumer
 {
   private readonly IConsumerWrapper _consumer = consumer;
   public event EventHandler<MessageReceivedEventArgs>? MessageReceived;

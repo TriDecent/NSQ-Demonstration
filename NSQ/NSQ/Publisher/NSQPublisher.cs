@@ -5,7 +5,7 @@ using System.Text.Json;
 using NSQ.Models;
 using NsqSharp.Bus.Configuration;
 
-public class NSQPublisher(INsqdPublisher publisher) : INSQPublisher
+internal class NSQPublisher(INsqdPublisher publisher) : INSQPublisher
 {
   private readonly INsqdPublisher _publisher = publisher;
 

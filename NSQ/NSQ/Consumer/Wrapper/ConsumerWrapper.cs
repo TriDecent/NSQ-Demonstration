@@ -1,7 +1,7 @@
 namespace NSQ.Consumer.Wrapper;
 using NsqSharp;
 
-public class ConsumerWrapper(Consumer consumer) : IConsumerWrapper
+internal class ConsumerWrapper(Consumer consumer) : IConsumerWrapper
 {
   private readonly Consumer _consumer = consumer;
 
