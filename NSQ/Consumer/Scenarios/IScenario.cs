@@ -1,6 +1,6 @@
 namespace NSQ.Consumer.Scenarios;
 
-public interface IScenerio
+public interface IScenario
 {
   Task ExecuteAsync();
 }
