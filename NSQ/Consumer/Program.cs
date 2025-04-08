@@ -1,4 +1,4 @@
 ﻿using NSQ.Consumer.Scenarios;
 
-var scenario = new Scenario1();
+var scenario = new Scenario();
 await scenario.ExecuteAsync();

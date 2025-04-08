@@ -1,14 +1,13 @@
 ﻿namespace NSQ.Publisher.Scenarios;
 
 using System.Text;
-using NSQ.Publisher;
-using NsqSharp.Bus.Configuration.BuiltIn;
+using NSQ.Factory;
 
-public class Scenario1 : IScenario
+public class Scenario : IScenario
 {
   public async Task ExecuteAsync()
   {
-    var publisher = new NSQPublisher(new NsqdHttpPublisher("127.0.0.1:4151", TimeSpan.FromSeconds(5)));
+    var publisher = new NSQFactory().CreatePublisher("127.0.0.1:4151", TimeSpan.FromSeconds(5));
 
     var input = "hello from publisher";
 
@@ -16,7 +15,7 @@ public class Scenario1 : IScenario
     {
       await publisher.PublishAsync(
         "topic_test",
-        new NSQ.Models.Message("Trí", Encoding.UTF8.GetBytes(input!)));
+        new Models.Message("Trí", Encoding.UTF8.GetBytes(input!)));
 
       input = Console.ReadLine();
     }
