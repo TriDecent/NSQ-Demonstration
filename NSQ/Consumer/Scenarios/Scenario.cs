@@ -1,6 +1,6 @@
 using System.Text;
+using Common;
 using NSQ.Address;
-using NSQ.Consumer.Wrapper;
 using NSQ.Factory;
 
 namespace NSQ.Consumer.Scenarios;
@@ -9,17 +9,15 @@ public class Scenario : IScenario
 {
   public async Task ExecuteAsync()
   {
-    var topic = "topic_test";
-    var channel = "my_channel";
+    var channel = "demo_channel";
 
-    var consumerWrapper = new ConsumerWrapper(new NsqSharp.Consumer(topic, channel));
     var factory = new NSQFactory();
-    var consumer = factory.CreateConsumer(topic, channel, (sender, message) =>
+    var consumer = factory.CreateConsumer(ScenarioMetadata.DEMO_TOPIC, channel, (sender, message) =>
     {
       Console.WriteLine($"Message received from: {sender}, Body: {Encoding.UTF8.GetString(message.Body.ToArray())}");
     });
 
-    Console.WriteLine($"Subscribing to topic '{topic}' on channel '{channel}'");
+    Console.WriteLine($"Subscribing to topic '{ScenarioMetadata.DEMO_TOPIC}' on channel '{channel}'");
 
     await consumer.ConsumeFromAsync(NSQEndpointExtensions.GetLookupdEndpoint());
 

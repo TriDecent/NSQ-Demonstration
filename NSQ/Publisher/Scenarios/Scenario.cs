@@ -1,6 +1,7 @@
 ﻿namespace NSQ.Publisher.Scenarios;
 
 using System.Text;
+using Common;
 using NSQ.Address;
 using NSQ.Factory;
 
@@ -16,7 +17,7 @@ public class Scenario : IScenario
     while (input is not "exit")
     {
       await publisher.PublishAsync(
-        "topic_test",
+        ScenarioMetadata.DEMO_TOPIC,
         new Models.Message("Trí", Encoding.UTF8.GetBytes(input!)));
 
       input = Console.ReadLine();

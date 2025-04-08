@@ -1,4 +1,5 @@
 using System.Text;
+using Common;
 using NSQ.Address;
 using NSQ.Consumer.Scenarios;
 using NSQ.Factory;
@@ -10,15 +11,14 @@ public class Scenario1 : IScenario
 {
   public async Task ExecuteAsync()
   {
-    var topic = "scenario1-topic";
     var channel = "same-channel-for-all";
     var factory = new NSQFactory();
     var action = (string consumerName) => (string sender, Message message) =>
       Console.WriteLine($"[{consumerName}] Message received from: {sender}, Body: {Encoding.UTF8.GetString(message.Body.ToArray())}");
 
-    var consumer1 = factory.CreateConsumer(topic, channel, action("consumer1"));
-    var consumer2 = factory.CreateConsumer(topic, channel, action("consumer2"));
-    var consumer3 = factory.CreateConsumer(topic, channel, action("consumer3"));
+    var consumer1 = factory.CreateConsumer(ScenarioMetadata.SAME_CHANNEL_TOPIC, channel, action("consumer1"));
+    var consumer2 = factory.CreateConsumer(ScenarioMetadata.SAME_CHANNEL_TOPIC, channel, action("consumer2"));
+    var consumer3 = factory.CreateConsumer(ScenarioMetadata.SAME_CHANNEL_TOPIC, channel, action("consumer3"));
 
     var tasks = new List<Task>{
       consumer1.ConsumeFromAsync(NSQEndpointExtensions.GetLookupdEndpoint()),
