@@ -1,4 +1,5 @@
 using System.Text;
+using NSQ.Address;
 using NSQ.Consumer.Wrapper;
 using NSQ.Factory;
 
@@ -20,7 +21,7 @@ public class Scenario : IScenario
 
     Console.WriteLine($"Subscribing to topic '{topic}' on channel '{channel}'");
 
-    await consumer.ConsumeFromAsync("127.0.0.1:4161");
+    await consumer.ConsumeFromAsync(NSQEndpointExtensions.GetLookupdEndpoint());
 
     string input = "";
     while (input is not "exit")
