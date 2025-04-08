@@ -2,7 +2,7 @@ namespace Common;
 
 public static class ScenarioMetadata
 {
-  public const string DEMO_TOPIC = "demo-topic";
-  public const string SAME_CHANNEL_TOPIC = "same-channel-topic";
-
+  public const string DEMO_TOPIC = "DEMO_TOPIC ";
+  public const string SAME_CHANNEL_TOPIC = "SAME_CHANNEL_TOPIC";
+  public const string DIFFERENT_CHANNEL_TOPIC = "DIFFERENT_CHANNEL_TOPIC";
 }

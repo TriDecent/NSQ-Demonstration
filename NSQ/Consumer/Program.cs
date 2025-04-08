@@ -1,4 +1,11 @@
-﻿using NSQ.Consumer.Scenarios;
+﻿using Consumer.Scenarios;
+using NSQ.Consumer.Scenarios;
 
-var scenario = new Scenario();
-await scenario.ExecuteAsync();
+// var demoScenario = new Scenario();
+// await demoScenario.ExecuteAsync();
+
+// var scenario1 = new Scenario1();
+// await scenario1.ExecuteAsync();
+
+var scenario2 = new Scenario2();
+await scenario2.ExecuteAsync();
