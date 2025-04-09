@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Common;
+using Common.InputProvider;
+using Common.Logger;
 using NSQ.Address;
 using NSQ.Consumer;
 using NSQ.Consumer.Scenarios;
@@ -9,36 +11,34 @@ using NSQ.Models;
 
 namespace Consumer.Scenarios;
 
-public class Scenario4 : IScenario
+public class Scenario4(ILogger logger, IInputProvider inputProvider) : IScenario
 {
   private const string PERFORMANCE_TOPIC = ScenarioMetadata.PERFORMANCE_TESTING_TOPIC;
   private const string CHANNEL = "performance-testing-channel";
 
+  private readonly ILogger _logger = logger;
+  private readonly IInputProvider _inputProvider = inputProvider;
+
   private int _expectedMessageCount;
-  private readonly ConcurrentBag<double> _processingTimes = [];
-  private readonly ConcurrentDictionary<string, int> _messageCountByConsumer = new();
-  private readonly ConcurrentDictionary<int, int> _messagesBySize = new();
+  private readonly ConcurrentBag<double> _processingTimes = new ConcurrentBag<double>();
+  private readonly ConcurrentDictionary<string, int> _messageCountByConsumer = new ConcurrentDictionary<string, int>();
+  private readonly ConcurrentDictionary<int, int> _messagesBySize = new ConcurrentDictionary<int, int>();
   private volatile int _receivedMessageCount = 0;
   private volatile bool _testCompleted = false;
   private readonly Stopwatch _stopwatch = new();
   private volatile bool _isFirstMessageReceived = false;
+  private readonly Lock _firstMessageLock = new();
 
   public async Task ExecuteAsync()
   {
-    Console.WriteLine("Performance Testing Scenario - Consumer");
-    Console.WriteLine("========================================");
+    _logger.WriteLine("Performance Testing Scenario - Consumer");
+    _logger.WriteLine("========================================");
 
-    Console.Write("Number of consumers (default 3): ");
-    if (!int.TryParse(Console.ReadLine(), out int consumerCount) || consumerCount <= 0)
-      consumerCount = 3;
+    int consumerCount = _inputProvider.GetInt("Number of consumers", 3);
+    _expectedMessageCount = _inputProvider.GetInt("Expected number of messages", 10000);
 
-    Console.Write("Expected number of messages (default 10000): ");
-    if (!int.TryParse(Console.ReadLine(), out _expectedMessageCount) || _expectedMessageCount <= 0)
-      _expectedMessageCount = 10000;
-
-    Console.WriteLine($"Starting {consumerCount} consumers to receive {_expectedMessageCount} messages");
-    Console.WriteLine("Press Enter to start...");
-    Console.ReadLine();
+    _logger.WriteLine($"Starting {consumerCount} consumers to receive {_expectedMessageCount} messages");
+    _inputProvider.WaitForUser("Press Enter to start...");
 
     var factory = new NSQFactory();
     var consumers = new List<INSQConsumer>();
@@ -59,21 +59,20 @@ public class Scenario4 : IScenario
       tasks.Add(consumer.ConsumeFromAsync(NSQEndpointExtensions.GetLookupdEndpoint()));
     }
 
-    Console.WriteLine("Consumers started. Waiting for first message...");
+    _logger.WriteLine("Consumers started. Waiting for first message...");
 
     await Task.Run(async () =>
     {
       while (!_testCompleted)
       {
         await Task.Delay(1000);
-
         if (_isFirstMessageReceived)
         {
-          Console.WriteLine($"Received {_receivedMessageCount}/{_expectedMessageCount} messages...");
+          _logger.WriteLine($"Received {_receivedMessageCount}/{_expectedMessageCount} messages...");
         }
         else
         {
-          Console.WriteLine("Waiting for first message...");
+          _logger.WriteLine("Waiting for first message...");
         }
 
         if (_receivedMessageCount >= _expectedMessageCount)
@@ -84,22 +83,27 @@ public class Scenario4 : IScenario
       }
     });
 
-    Console.WriteLine("\nPerformance Results:");
-    Console.WriteLine($"Total time: {_stopwatch.Elapsed.TotalSeconds:F2} seconds");
-    Console.WriteLine($"Throughput: {_receivedMessageCount / _stopwatch.Elapsed.TotalSeconds:F2} messages/second");
+    _logger.WriteLine("\nPerformance Results:");
+    _logger.WriteLine($"Total time: {_stopwatch.Elapsed.TotalSeconds:F2} seconds");
+    _logger.WriteLine($"Throughput: {_receivedMessageCount / _stopwatch.Elapsed.TotalSeconds:F2} messages/second");
 
-    Console.WriteLine("\nMessage distribution across consumers:");
+    _logger.WriteLine("\nMessage distribution across consumers:");
     foreach (var kvp in _messageCountByConsumer)
     {
-      Console.WriteLine($"  {kvp.Key}: {kvp.Value} messages ({(double)kvp.Value / _receivedMessageCount:P2})");
+      _logger.WriteLine($"  {kvp.Key}: {kvp.Value} messages ({(double)kvp.Value / _receivedMessageCount:P2})");
     }
 
     if (!_messagesBySize.IsEmpty)
     {
-      Console.WriteLine("\nMessage size distribution:");
-      foreach (var kvp in _messagesBySize.OrderBy(x => x.Key))
+      _logger.WriteLine("\nMessage size distribution:");
+      var groupedSizes = _messagesBySize
+        .GroupBy(x => x.Key / 100 * 100)
+        .OrderBy(g => g.Key);
+
+      foreach (var group in groupedSizes)
       {
-        Console.WriteLine($"  {kvp.Key} KB: {kvp.Value} messages");
+        int count = group.Sum(x => x.Value);
+        _logger.WriteLine($"  {group.Key}-{group.Key + 99} bytes: {count} messages");
       }
     }
 
@@ -107,27 +111,25 @@ public class Scenario4 : IScenario
     {
       var times = _processingTimes.Order().ToArray();
 
-      Console.WriteLine("\nProcessing time statistics:");
+      _logger.WriteLine("\nProcessing time statistics:");
+      _logger.WriteLine("  In milliseconds:");
+      _logger.WriteLine($"    Min: {times.First():F6} ms");
+      _logger.WriteLine($"    Max: {times.Last():F6} ms");
+      _logger.WriteLine($"    Avg: {times.Average():F6} ms");
+      _logger.WriteLine($"    P50: {Percentile(times, 50):F6} ms");
+      _logger.WriteLine($"    P95: {Percentile(times, 95):F6} ms");
+      _logger.WriteLine($"    P99: {Percentile(times, 99):F6} ms");
 
-      Console.WriteLine("  In milliseconds:");
-      Console.WriteLine($"    Min: {times.First():F6} ms");
-      Console.WriteLine($"    Max: {times.Last():F6} ms");
-      Console.WriteLine($"    Avg: {times.Average():F6} ms");
-      Console.WriteLine($"    P50: {Percentile(times, 50):F6} ms");
-      Console.WriteLine($"    P95: {Percentile(times, 95):F6} ms");
-      Console.WriteLine($"    P99: {Percentile(times, 99):F6} ms");
-
-      Console.WriteLine("  In microseconds:");
-      Console.WriteLine($"    Min: {times.First() * 1000:F2} μs");
-      Console.WriteLine($"    Max: {times.Last() * 1000:F2} μs");
-      Console.WriteLine($"    Avg: {times.Average() * 1000:F2} μs");
-      Console.WriteLine($"    P50: {Percentile(times, 50) * 1000:F2} μs");
-      Console.WriteLine($"    P95: {Percentile(times, 95) * 1000:F2} μs");
-      Console.WriteLine($"    P99: {Percentile(times, 99) * 1000:F2} μs");
+      _logger.WriteLine("  In microseconds:");
+      _logger.WriteLine($"    Min: {times.First() * 1000:F2} μs");
+      _logger.WriteLine($"    Max: {times.Last() * 1000:F2} μs");
+      _logger.WriteLine($"    Avg: {times.Average() * 1000:F2} μs");
+      _logger.WriteLine($"    P50: {Percentile(times, 50) * 1000:F2} μs");
+      _logger.WriteLine($"    P95: {Percentile(times, 95) * 1000:F2} μs");
+      _logger.WriteLine($"    P99: {Percentile(times, 99) * 1000:F2} μs");
     }
 
-    Console.WriteLine("\nPress Enter to exit...");
-    Console.ReadLine();
+    _inputProvider.WaitForUser("\nPress Enter to exit...");
 
     foreach (var consumer in consumers)
     {
@@ -139,13 +141,13 @@ public class Scenario4 : IScenario
   {
     if (!_isFirstMessageReceived)
     {
-      lock (this)
+      lock (_firstMessageLock)
       {
         if (!_isFirstMessageReceived)
         {
           _stopwatch.Start();
           _isFirstMessageReceived = true;
-          Console.WriteLine("First message received! Starting performance measurement...");
+          _logger.WriteLine("First message received! Starting performance measurement...");
         }
       }
     }
@@ -154,13 +156,12 @@ public class Scenario4 : IScenario
 
     Interlocked.Increment(ref _receivedMessageCount);
 
-    var sizeKB = (message.Body.Length + 1023) / 1024;
-    _messagesBySize.AddOrUpdate(sizeKB, 1, (_, value) => value + 1);
+    var sizeBytes = message.Body.Length;
+    _messagesBySize.AddOrUpdate(sizeBytes, 1, (_, value) => value + 1);
 
     _messageCountByConsumer.AddOrUpdate(consumerName, 1, (_, value) => value + 1);
 
     processingStopwatch.Stop();
-
     double processingTimeMs = processingStopwatch.Elapsed.TotalMilliseconds;
     _processingTimes.Add(processingTimeMs);
   }
@@ -170,12 +171,11 @@ public class Scenario4 : IScenario
     if (sortedData.Length == 0)
       return 0;
 
-    var n = percentile / (decimal)100.0 * (sortedData.Length - 1);
-    var k = (int)n;
-    var d = n - k;
-
+    double n = percentile / 100.0 * (sortedData.Length - 1);
+    int k = (int)n;
+    double d = n - k;
     return k >= sortedData.Length - 1
       ? sortedData[^1]
-      : sortedData[k] + (double)d * (sortedData[k + 1] - sortedData[k]);
+      : sortedData[k] + d * (sortedData[k + 1] - sortedData[k]);
   }
 }
