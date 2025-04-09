@@ -15,19 +15,24 @@ public class Scenario4(ILogger logger, IInputProvider inputProvider) : IScenario
 {
   private const string PERFORMANCE_TOPIC = ScenarioMetadata.PERFORMANCE_TESTING_TOPIC;
   private const string CHANNEL = "performance-testing-channel";
+  private const int INACTIVITY_TIMEOUT_MS = 3000;
 
   private readonly ILogger _logger = logger;
   private readonly IInputProvider _inputProvider = inputProvider;
 
   private int _expectedMessageCount;
   private readonly ConcurrentBag<double> _processingTimes = new ConcurrentBag<double>();
-  private readonly ConcurrentDictionary<string, int> _messageCountByConsumer = new ConcurrentDictionary<string, int>();
-  private readonly ConcurrentDictionary<int, int> _messagesBySize = new ConcurrentDictionary<int, int>();
+  private readonly ConcurrentDictionary<string, int> _messageCountByConsumer = new();
+  private readonly ConcurrentDictionary<int, int> _messagesBySize = new();
   private volatile int _receivedMessageCount = 0;
   private volatile bool _testCompleted = false;
   private readonly Stopwatch _stopwatch = new();
   private volatile bool _isFirstMessageReceived = false;
   private readonly Lock _firstMessageLock = new();
+
+  private long _lastMessageReceivedTicks;
+  private volatile bool _isStopwatchRunning = false;
+  private readonly Lock _stopwatchLock = new();
 
   public async Task ExecuteAsync()
   {
@@ -42,7 +47,6 @@ public class Scenario4(ILogger logger, IInputProvider inputProvider) : IScenario
 
     var factory = new NSQFactory();
     var consumers = new List<INSQConsumer>();
-    var tasks = new List<Task>();
 
     for (int i = 0; i < consumerCount; i++)
     {
@@ -56,7 +60,7 @@ public class Scenario4(ILogger logger, IInputProvider inputProvider) : IScenario
       );
 
       consumers.Add(consumer);
-      tasks.Add(consumer.ConsumeFromAsync(NSQEndpointExtensions.GetLookupdEndpoint()));
+      await consumer.ConsumeFromAsync(NSQEndpointExtensions.GetLookupdEndpoint()); // Prevent race condition
     }
 
     _logger.WriteLine("Consumers started. Waiting for first message...");
@@ -65,10 +69,13 @@ public class Scenario4(ILogger logger, IInputProvider inputProvider) : IScenario
     {
       while (!_testCompleted)
       {
-        await Task.Delay(1000);
+        await Task.Delay(500);
         if (_isFirstMessageReceived)
         {
-          _logger.WriteLine($"Received {_receivedMessageCount}/{_expectedMessageCount} messages...");
+          CheckInactivityAndManageStopwatch();
+
+          _logger.WriteLine($"Received {_receivedMessageCount}/{_expectedMessageCount} messages... " +
+            $"[Timer: {(_isStopwatchRunning ? "Running" : "Paused")}]");
         }
         else
         {
@@ -77,7 +84,14 @@ public class Scenario4(ILogger logger, IInputProvider inputProvider) : IScenario
 
         if (_receivedMessageCount >= _expectedMessageCount)
         {
-          _stopwatch.Stop();
+          lock (_stopwatchLock)
+          {
+            if (_isStopwatchRunning)
+            {
+              _stopwatch.Stop();
+              _isStopwatchRunning = false;
+            }
+          }
           _testCompleted = true;
         }
       }
@@ -137,8 +151,31 @@ public class Scenario4(ILogger logger, IInputProvider inputProvider) : IScenario
     }
   }
 
+  private void CheckInactivityAndManageStopwatch()
+  {
+    var currentTicks = DateTime.Now.Ticks;
+    var lastTicks = Interlocked.Read(ref _lastMessageReceivedTicks);
+    var elapsedMs = (currentTicks - lastTicks) / TimeSpan.TicksPerMillisecond;
+
+    if (elapsedMs > INACTIVITY_TIMEOUT_MS)
+    {
+      lock (_stopwatchLock)
+      {
+        if (_isStopwatchRunning)
+        {
+          double stoppedAtSeconds = _stopwatch.Elapsed.TotalSeconds;
+          _stopwatch.Stop();
+          _isStopwatchRunning = false;
+          _logger.WriteLine($"No messages received for {INACTIVITY_TIMEOUT_MS}ms - Pausing timer at {stoppedAtSeconds:F3}s");
+        }
+      }
+    }
+  }
+
   private void HandleMessage(string consumerName, Message message)
   {
+    Interlocked.Exchange(ref _lastMessageReceivedTicks, DateTime.Now.Ticks);
+
     if (!_isFirstMessageReceived)
     {
       lock (_firstMessageLock)
@@ -146,8 +183,22 @@ public class Scenario4(ILogger logger, IInputProvider inputProvider) : IScenario
         if (!_isFirstMessageReceived)
         {
           _stopwatch.Start();
+          _isStopwatchRunning = true;
           _isFirstMessageReceived = true;
-          _logger.WriteLine("First message received! Starting performance measurement...");
+          _logger.WriteLine("First message received! Starting performance measurement at 0.000s");
+        }
+      }
+    }
+    else if (!_isStopwatchRunning)
+    {
+      lock (_stopwatchLock)
+      {
+        if (!_isStopwatchRunning)
+        {
+          double resumeAtSeconds = _stopwatch.Elapsed.TotalSeconds;
+          _stopwatch.Start();
+          _isStopwatchRunning = true;
+          _logger.WriteLine($"Messages resumed - Restarting timer at {resumeAtSeconds:F3}s");
         }
       }
     }

@@ -1,4 +1,6 @@
-﻿using Consumer.Scenarios;
+﻿using Common.InputProvider;
+using Common.Logger;
+using Consumer.Scenarios;
 using NSQ.Consumer.Scenarios;
 
 // var demoScenario = new Scenario();
@@ -10,5 +12,8 @@ using NSQ.Consumer.Scenarios;
 // var scenario2 = new Scenario2();
 // await scenario2.ExecuteAsync();
 
-var scenario3 = new Scenario3();
-await scenario3.ExecuteAsync();
+// var scenario3 = new Scenario3();
+// await scenario3.ExecuteAsync();
+
+var scenario4 = new Scenario4(new ConsoleLogger(), new ConsoleInputProvider());
+await scenario4.ExecuteAsync();
