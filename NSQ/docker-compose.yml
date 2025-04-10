@@ -1,0 +1,83 @@
+services:
+  nsqlookupd:
+    image: nsqio/nsq
+    command: /nsqlookupd
+    restart: always
+    ports:
+      - "4160:4160"  # TCP
+      - "4161:4161"  # HTTP
+    networks:
+      - nsq_network
+
+  nsqd:
+    image: nsqio/nsq
+    depends_on:
+      - nsqlookupd
+    restart: always
+    command: >
+      /nsqd
+      --broadcast-address=192.168.31.191
+      --lookupd-tcp-address=nsqlookupd:4160
+    ports:
+      - "4150:4150"
+      - "4151:4151"
+    networks:
+      - nsq_network
+
+  nsqadmin:
+    image: nsqio/nsq
+    restart: always
+    depends_on:
+      - nsqlookupd
+      - nsqd
+    command: >
+      /nsqadmin
+      --lookupd-http-address=nsqlookupd:4161
+    ports:
+      - "4171:4171"
+    networks:
+      - nsq_network
+
+  nsq_metrics:
+    image: rozkboy/nsq-metrics
+    depends_on:
+      - nsqd
+    restart: always  
+    ports:
+      - "9117:9117"
+    environment:
+      - NSQ_METRICS_NSQD_ADDRESS=http://nsqd:4151/stats
+      - NSQ_METRICS_WEB_LISTEN=:9117
+    networks:
+      - nsq_network
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - nsq_metrics
+    networks:
+      - nsq_network
+    restart: always
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - nsq_network
+    restart: always
+
+networks:
+  nsq_network:
+    driver: bridge
+
+volumes:
+  grafana-storage:
