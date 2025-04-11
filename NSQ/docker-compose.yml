@@ -16,7 +16,7 @@ services:
     restart: always
     command: >
       /nsqd
-      --broadcast-address=192.168.31.191
+      --broadcast-address=host.docker.internal
       --lookupd-tcp-address=nsqlookupd:4160
     ports:
       - "4150:4150"
@@ -48,6 +48,7 @@ services:
     environment:
       - NSQ_METRICS_NSQD_ADDRESS=http://nsqd:4151/stats
       - NSQ_METRICS_WEB_LISTEN=:9117
+      - NSQ_METRICS_ENABLED_COLLECTORS=stats.topics,stats.channels,stats.clients
     networks:
       - nsq_network
 
@@ -66,7 +67,7 @@ services:
   grafana:
     image: grafana/grafana
     ports:
-      - "3001:3000"
+      - "3000:3000"
     volumes:
       - grafana-storage:/var/lib/grafana
     depends_on:
