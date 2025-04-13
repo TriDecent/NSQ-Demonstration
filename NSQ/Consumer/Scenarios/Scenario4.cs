@@ -60,7 +60,7 @@ public class Scenario4 : IScenario
       _consumerManager.ReceivedMessageCount,
       _statsCollector.MessageCountByConsumer,
       _statsCollector.MessagesBySize,
-      _statsCollector.ProcessingTimes, broadcastMode, expectedMessageCount);
+      _statsCollector.ProcessingTimes, broadcastMode, expectedMessageCount, _statsCollector.MessageTimestamps);
 
     _inputProvider.WaitForUser("\nPress Enter to exit...");
     _consumerManager.StopAllConsumers();

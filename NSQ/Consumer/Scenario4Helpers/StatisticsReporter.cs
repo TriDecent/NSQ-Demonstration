@@ -13,7 +13,7 @@ public class StatisticsReporter(ILogger logger)
     ConcurrentDictionary<string, int> messageCountByConsumer,
     ConcurrentDictionary<int, int> messagesBySize,
     ConcurrentBag<double> processingTimes,
-    bool broadcastMode = false, int originalExpectedCount = 0)
+    bool broadcastMode = false, int originalExpectedCount = 0, ConcurrentBag<DateTime>? messageTimestamps = null)
   {
     _logger.WriteLine("\nPerformance Results:");
     _logger.WriteLine($"Mode: {(broadcastMode ? "Broadcast" : "Load Balancing")}");
@@ -34,6 +34,15 @@ public class StatisticsReporter(ILogger logger)
       _logger.WriteLine($"Throughput: {messagesPerSecond:F2} messages/second");
     }
 
+    if (messageTimestamps != null && !messageTimestamps.IsEmpty)
+    {
+      DisplayPerformanceOverTime(messageTimestamps);
+    }
+    else
+    {
+      DisplayPerformanceOverTimeFrom(processingTimes);
+    }
+
     DisplayMessageDistribution(
       messageCountByConsumer,
       receivedMessageCount,
@@ -48,6 +57,36 @@ public class StatisticsReporter(ILogger logger)
     if (!processingTimes.IsEmpty)
     {
       DisplayProcessingTimeStatistics(processingTimes, messagesBySize, receivedMessageCount);
+    }
+  }
+
+  private void DisplayPerformanceOverTime(ConcurrentBag<DateTime> timestamps)
+  {
+    if (timestamps.IsEmpty)
+      return;
+
+    const int intervalSeconds = 5;
+    var intervals = new Dictionary<int, int>();
+
+    DateTime startTime = timestamps.Min();
+
+    foreach (var timestamp in timestamps)
+    {
+      int intervalIndex = (int)((timestamp - startTime).TotalSeconds / intervalSeconds);
+
+      if (!intervals.ContainsKey(intervalIndex))
+      {
+        intervals[intervalIndex] = 0;
+      }
+      intervals[intervalIndex]++;
+    }
+
+    _logger.WriteLine("\nPerformance over time:");
+    foreach (var kvp in intervals.OrderBy(kvp => kvp.Key))
+    {
+      double startSeconds = kvp.Key * intervalSeconds;
+      double endSeconds = (kvp.Key + 1) * intervalSeconds;
+      _logger.WriteLine($"  {startSeconds:F1}-{endSeconds:F1} seconds: {kvp.Value} messages");
     }
   }
 
@@ -117,7 +156,7 @@ public class StatisticsReporter(ILogger logger)
 
     DisplayProcessingTimeBuckets(times);
     DisplayMessageSizeBuckets(messagesBySize);
-    DisplayPerformanceOverTime(processingTimes);
+    // DisplayPerformanceOverTimeFrom(processingTimes);
     DisplayAggregatePerformance(receivedMessageCount, messagesBySize);
     DisplayDetailedTimeStats(times);
   }
@@ -190,7 +229,7 @@ public class StatisticsReporter(ILogger logger)
     _logger.WriteLine($"  > {sizeBuckets[^1]} bytes: {sizeBucketCounts[^1]} messages");
   }
 
-  private void DisplayPerformanceOverTime(ConcurrentBag<double> processingTimes)
+  private void DisplayPerformanceOverTimeFrom(ConcurrentBag<double> processingTimes)
   {
     const int intervalSeconds = 10;
     var intervals = new Dictionary<int, int>();
@@ -198,11 +237,12 @@ public class StatisticsReporter(ILogger logger)
     foreach (var time in processingTimes)
     {
       int interval = (int)(time / intervalSeconds);
-      if (!intervals.ContainsKey(interval))
+      if (!intervals.TryGetValue(interval, out int value))
       {
-        intervals[interval] = 0;
+        value = 0;
+        intervals[interval] = value;
       }
-      intervals[interval]++;
+      intervals[interval] = ++value;
     }
 
     _logger.WriteLine("\nPerformance over time:");

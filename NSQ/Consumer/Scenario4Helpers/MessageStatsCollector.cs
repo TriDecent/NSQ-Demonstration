@@ -8,6 +8,7 @@ public class MessageStatsCollector
   public ConcurrentBag<double> ProcessingTimes { get; } = [];
   public ConcurrentDictionary<string, int> MessageCountByConsumer { get; } = new();
   public ConcurrentDictionary<int, int> MessagesBySize { get; } = new();
+  public ConcurrentBag<DateTime> MessageTimestamps { get; } = [];
 
   public void InitializeConsumer(string consumerName)
   {
@@ -19,6 +20,7 @@ public class MessageStatsCollector
     var sizeBytes = message.Body.Length;
     MessagesBySize.AddOrUpdate(sizeBytes, 1, (_, value) => value + 1);
     MessageCountByConsumer.AddOrUpdate(consumerName, 1, (_, value) => value + 1);
+    MessageTimestamps.Add(DateTime.Now);
   }
 
   public void RecordProcessingTime(double processingTimeMs)
