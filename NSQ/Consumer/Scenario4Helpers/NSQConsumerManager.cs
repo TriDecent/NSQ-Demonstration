@@ -20,9 +20,16 @@ public class NSQConsumerManager(ILogger logger, PerformanceMeasurer performanceM
 
   public int ReceivedMessageCount => _receivedMessageCount;
 
-  public async Task StartConsumersAsync(string topic, string channel, int consumerCount, int expectedMessageCount)
+  public async Task StartConsumersAsync(
+    string topic,
+    string channel,
+    int consumerCount,
+    int expectedMessageCount,
+    bool broadcastMode = false)  // Default to load balancing mode
   {
-    _expectedMessageCount = expectedMessageCount;
+    _expectedMessageCount = broadcastMode
+    ? expectedMessageCount * consumerCount
+    : expectedMessageCount; ;
     var factory = new NSQFactory();
 
     for (int i = 0; i < consumerCount; i++)
@@ -30,14 +37,29 @@ public class NSQConsumerManager(ILogger logger, PerformanceMeasurer performanceM
       string consumerName = $"consumer-{i + 1}";
       _statsCollector.InitializeConsumer(consumerName);
 
+      // In broadcast mode, create a unique channel for each consumer
+      string consumerChannel = broadcastMode
+        ? $"{channel}-{i + 1}"
+        : channel;
+
       var consumer = factory.CreateConsumer(
         topic,
-        channel,
+        consumerChannel,
         (sender, message) => HandleMessage(consumerName, message)
       );
 
       _consumers.Add(consumer);
       await consumer.ConsumeFromAsync(NSQEndpointExtensions.GetLookupdEndpoint());
+
+      if (broadcastMode)
+      {
+        _logger.WriteLine($"  Started {consumerName} on dedicated channel '{consumerChannel}'");
+      }
+    }
+
+    if (!broadcastMode)
+    {
+      _logger.WriteLine($"All consumers subscribed to shared channel '{channel}'");
     }
 
     _logger.WriteLine("Consumers started. Waiting for first message...");
@@ -79,8 +101,9 @@ public class NSQConsumerManager(ILogger logger, PerformanceMeasurer performanceM
         {
           _performanceMeasurer.CheckInactivity();
 
+          var progressPercentage = (double)_receivedMessageCount / _expectedMessageCount * 100;
           _logger.WriteLine($"Received {_receivedMessageCount}/{_expectedMessageCount} messages... " +
-            $"[Timer: {(_performanceMeasurer.IsRunning ? "Running" : "Paused")}]");
+            $"({progressPercentage:F1}%) [Timer: {(_performanceMeasurer.IsRunning ? "Running" : "Paused")}]");
         }
         else
         {

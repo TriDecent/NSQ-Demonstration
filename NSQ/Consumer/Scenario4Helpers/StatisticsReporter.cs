@@ -12,13 +12,33 @@ public class StatisticsReporter(ILogger logger)
     int receivedMessageCount,
     ConcurrentDictionary<string, int> messageCountByConsumer,
     ConcurrentDictionary<int, int> messagesBySize,
-    ConcurrentBag<double> processingTimes)
+    ConcurrentBag<double> processingTimes,
+    bool broadcastMode = false, int originalExpectedCount = 0)
   {
     _logger.WriteLine("\nPerformance Results:");
+    _logger.WriteLine($"Mode: {(broadcastMode ? "Broadcast" : "Load Balancing")}");
     _logger.WriteLine($"Total time: {elapsedTime.TotalSeconds:F2} seconds");
-    _logger.WriteLine($"Throughput: {receivedMessageCount / elapsedTime.TotalSeconds:F2} messages/second");
 
-    DisplayMessageDistribution(messageCountByConsumer, receivedMessageCount);
+    int expectedMessagesPerConsumer = originalExpectedCount;
+
+    double messagesPerSecond = receivedMessageCount / elapsedTime.TotalSeconds;
+    double perConsumerThroughput = messagesPerSecond / messageCountByConsumer.Count;
+
+    if (broadcastMode)
+    {
+      _logger.WriteLine($"Individual throughput: {perConsumerThroughput:F2} messages/second/consumer");
+      _logger.WriteLine($"Combined throughput: {messagesPerSecond:F2} messages/second");
+    }
+    else
+    {
+      _logger.WriteLine($"Throughput: {messagesPerSecond:F2} messages/second");
+    }
+
+    DisplayMessageDistribution(
+      messageCountByConsumer,
+      receivedMessageCount,
+      expectedMessagesPerConsumer,
+      broadcastMode);
 
     if (!messagesBySize.IsEmpty)
     {
@@ -33,13 +53,39 @@ public class StatisticsReporter(ILogger logger)
 
   private void DisplayMessageDistribution(
     ConcurrentDictionary<string, int> messageCountByConsumer,
-    int totalCount)
+    int totalCount,
+    int expectedMessagesPerConsumer = 0,
+    bool broadcastMode = false)
   {
     _logger.WriteLine("\nMessage distribution across consumers:");
 
     foreach (var kvp in messageCountByConsumer)
     {
-      _logger.WriteLine($"  {kvp.Key}: {kvp.Value} messages ({(double)kvp.Value / totalCount:P2})");
+      double percentage = (double)kvp.Value / totalCount;
+
+      if (broadcastMode)
+      {
+        double completionRate = (double)kvp.Value / expectedMessagesPerConsumer;
+        _logger.WriteLine($"  {kvp.Key}: {kvp.Value}/{expectedMessagesPerConsumer} messages ({completionRate:P2} of expected)");
+      }
+      else
+      {
+        _logger.WriteLine($"  {kvp.Key}: {kvp.Value} messages ({percentage:P2} of total)");
+      }
+    }
+
+    if (!broadcastMode && messageCountByConsumer.Count > 1)
+    {
+      var counts = messageCountByConsumer.Select(kvp => kvp.Value).ToArray();
+      int min = counts.Min();
+      int max = counts.Max();
+      double avg = counts.Average();
+      double fairnessIndex = min / avg;
+
+      _logger.WriteLine("\nLoad balancing fairness metrics:");
+      _logger.WriteLine($"  Min: {min}, Max: {max}, Avg: {avg:F2}");
+      _logger.WriteLine($"  Max/Min ratio: {(double)max / min:F2}");
+      _logger.WriteLine($"  Fairness index: {fairnessIndex:F4} (1.0 is perfectly balanced)");
     }
   }
 
