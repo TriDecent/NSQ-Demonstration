@@ -15,5 +15,8 @@ using NSQ.Consumer.Scenarios;
 // var scenario3 = new Scenario3();
 // await scenario3.ExecuteAsync();
 
-var scenario4 = new Scenario4(new ConsoleLogger(), new ConsoleInputProvider());
+var consumerLogPath = @"Log\consumer-log.txt";
+var scenario4 = new Scenario4(
+  new MultiLogger([new ConsoleLogger(), new FileLogger(consumerLogPath)]),
+  new ConsoleInputProvider());
 await scenario4.ExecuteAsync();

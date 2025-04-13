@@ -15,5 +15,9 @@ using Publisher.Scenarios;
 // var scenario3 = new Scenario3();
 // await scenario3.ExecuteAsync();
 
-var scenario4 = new Scenario4(new ConsoleInputProvider(), new ConsoleLogger(), new RandomPayloadGenerator());
+var consumerLogPath = @"Log\publisher-log.txt";
+var scenario4 = new Scenario4(
+  new ConsoleInputProvider(),
+  new MultiLogger([new ConsoleLogger(), new FileLogger(consumerLogPath)]),
+  new RandomPayloadGenerator());
 await scenario4.ExecuteAsync();
