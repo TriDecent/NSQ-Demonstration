@@ -14,11 +14,17 @@ public class Scenario3 : IScenario
     var factory = new NSQFactory();
     var channelName = "multi-publisher-consumer";
 
+    Console.WriteLine("Starting NSQ Consumer for Multiple Publishers...");
+    Console.WriteLine($"Channel: {channelName}");
+    Console.WriteLine($"Topic: {ScenarioMetadata.MULTIPLE_PUBLISHERS_TOPIC}");
+    Console.WriteLine("Waiting for messages. Type 'exit' to stop.");
+
     var messageHandler = (string sender, Message message) =>
     {
       var body = Encoding.UTF8.GetString(message.Body.ToArray());
-      Console.WriteLine($"Received: {body}");
-      Console.WriteLine($"From publisher: {message.Sender}");
+      Console.WriteLine($"[Message Received]");
+      Console.WriteLine($"  From Publisher: {message.Sender}");
+      Console.WriteLine($"  Body: {body}");
       Console.WriteLine(new string('-', 50));
     };
 
@@ -27,7 +33,9 @@ public class Scenario3 : IScenario
       channelName,
       messageHandler);
 
+    Console.WriteLine($"Subscribing to topic '{ScenarioMetadata.MULTIPLE_PUBLISHERS_TOPIC}' on channel '{channelName}'...");
     await consumer.ConsumeFromAsync(NSQEndpointExtensions.GetLookupdEndpoint());
+    Console.WriteLine("Consumer is now listening for messages.");
 
     string input = "";
     while (input is not "exit")
@@ -36,6 +44,6 @@ public class Scenario3 : IScenario
     }
 
     consumer.Stop();
+    Console.WriteLine("Consumer stopped. Exiting...");
   }
-
 }
