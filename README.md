@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This project demonstrates the use of [NSQ](https://nsq.io/), a real-time distributed messaging platform, implemented in C#. It includes a Publisher, a Consumer, a Common library, and a Docker-based setup for the NSQ system, along with Prometheus and Grafana for monitoring.
+This project demonstrates the use of [NSQ](https://nsq.io/), a real-time distributed messaging platform, implemented in C#. It includes a Publisher, a Consumer, a NSQ library, and a Docker-based setup for the NSQ system, along with Prometheus and Grafana for monitoring.
 
 ## Directory Structure
 
